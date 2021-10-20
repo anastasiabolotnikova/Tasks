@@ -351,8 +351,6 @@ void MotionConstr::update(const std::vector<rbd::MultiBody> & mbs,
       {
         // Not near torque limits
         d.state = DampData::Free;
-        dampedTorqueDtL_[d.alphaDBegin] = torqueDtL_[d.alphaDBegin];
-        dampedTorqueDtU_[d.alphaDBegin] = torqueDtU_[d.alphaDBegin];
       }
     }
 
