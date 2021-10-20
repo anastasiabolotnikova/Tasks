@@ -148,6 +148,37 @@ protected:
   Eigen::VectorXd torqueL_, torqueU_;
   Eigen::VectorXd torqueDtL_, torqueDtU_;
   Eigen::VectorXd tmpL_, tmpU_;
+
+private:
+  struct DampData
+  {
+    enum State
+    {
+      Low,
+      Upp,
+      Free
+    };
+
+    DampData(double mi, double ma, double idi, double sdi, int aDB, int i)
+    : min(mi), max(ma), iDist(idi), sDist(sdi), jointIndex(i), alphaDBegin(aDB), damping(0.),
+      state(Free)
+    {
+    }
+
+    double min, max;
+    double iDist, sDist;
+    int jointIndex;
+    int alphaDBegin;
+    double damping;
+    State state;
+  };
+
+  std::vector<DampData> data_;
+  std::vector<std::vector<double>> prevJointTorque_;
+  double dt_;
+  double damperOff_ = 0.5;
+  Eigen::VectorXd dampedTorqueDtL_, dampedTorqueDtU_;
+
 };
 
 struct SpringJoint

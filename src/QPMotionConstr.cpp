@@ -270,16 +270,33 @@ MotionConstr::MotionConstr(const std::vector<rbd::MultiBody> & mbs,
                            const TorqueDBound & tdb,
                            double dt)
 : MotionConstrCommon(mbs, robotIndex), torqueL_(mbs[robotIndex].nrDof()), torqueU_(mbs[robotIndex].nrDof()),
-  torqueDtL_(mbs[robotIndex].nrDof()), torqueDtU_(mbs[robotIndex].nrDof()), tmpL_(nrDof_), tmpU_(nrDof_)
+  torqueDtL_(mbs[robotIndex].nrDof()), torqueDtU_(mbs[robotIndex].nrDof()), tmpL_(nrDof_), tmpU_(nrDof_),
+  dt_(dt), dampedTorqueDtL_(mbs[robotIndex].nrDof()), dampedTorqueDtU_(mbs[robotIndex].nrDof())
+
 {
   rbd::paramToVector(tb.lTorqueBound, torqueL_);
   rbd::paramToVector(tb.uTorqueBound, torqueU_);
+
+  const rbd::MultiBody & mb = mbs[robotIndex];
+  for(int i = 0; i < mb.nrJoints(); ++i)
+  {
+    if(mb.joint(i).dof() == 1)
+    {
+      double dist = (torqueU_[mb.jointPosInDof(i)] - torqueL_[mb.jointPosInDof(i)]);
+      data_.emplace_back(torqueL_[mb.jointPosInDof(i)], torqueU_[mb.jointPosInDof(i)],
+                         dist * 0.1, dist * 0.01,
+                         mb.jointPosInDof(i), i);
+    }
+  }
+
   torqueDtL_.setConstant(-std::numeric_limits<double>::infinity());
   torqueDtU_.setConstant(std::numeric_limits<double>::infinity());
   rbd::paramToVector(tdb.lTorqueDBound, torqueDtL_);
   rbd::paramToVector(tdb.uTorqueDBound, torqueDtU_);
   torqueDtL_ *= dt;
   torqueDtU_ *= dt;
+  dampedTorqueDtL_ = torqueDtL_;
+  dampedTorqueDtU_ = torqueDtU_;
 }
 
 void MotionConstr::update(const std::vector<rbd::MultiBody> & mbs,
@@ -288,17 +305,66 @@ void MotionConstr::update(const std::vector<rbd::MultiBody> & mbs,
 {
   computeMatrix(mbs, mbcs);
 
+  const rbd::MultiBodyConfig & mbc = mbcs[robotIndex_];
+
   // max[tauMin, tauDMin*dt + tau(k-1)] - C <= H*alphaD - J^t G lambda <= min[tauMax, tauDMax * dt + tau(k-1)] - C
   if(updateIter_++ > 0)
   {
-    AL_.head(torqueL_.rows()) += torqueL_.cwiseMax(torqueDtL_ + curTorque_);
-    AU_.head(torqueL_.rows()) += torqueU_.cwiseMin(torqueDtU_ + curTorque_);
+    /* Update torque derivative bounds based on linear velocity damper */
+    for(DampData & d : data_)
+    {
+      // Distances to lower and upper torque bound
+      double ld = mbc.jointTorque[d.jointIndex][0] - d.min;
+      double ud = d.max - mbc.jointTorque[d.jointIndex][0];
+
+      if(ld < d.iDist)
+      {
+        // Aproaching lower torque bound
+        if(d.state != DampData::Low)
+        {
+          // Derivative of the distance to the lower torque limit ld
+          double dDot = (mbc.jointTorque[d.jointIndex][0] - prevJointTorque_[d.jointIndex][0]) / dt_;
+          // Damping constant computed when constraint is activated
+          d.damping = - ((d.iDist - d.sDist) / (ld - d.sDist)) * dDot + damperOff_;
+          d.state = DampData::Low;
+        }
+        // Damped lower torque derivative limit
+        double damper = - d.damping * ((ld - d.sDist) / (d.iDist - d.sDist));
+        dampedTorqueDtL_[d.alphaDBegin] = damper * dt_;
+      }
+      else if(ud < d.iDist)
+      {
+        // Aproaching upper torque bound
+        if(d.state != DampData::Upp)
+        {
+          // Derivative of the distance to the upper torque limit ud
+          double dDot = - (mbc.jointTorque[d.jointIndex][0] - prevJointTorque_[d.jointIndex][0]) / dt_;
+          // Damping constant computed when constraint is activated
+          d.damping = - ((d.iDist - d.sDist) / (ud - d.sDist)) * dDot + damperOff_;
+          d.state = DampData::Upp;
+        }
+        // Damped upper torque derivative limit
+        double damper = d.damping * ((ud - d.sDist) / (d.iDist - d.sDist));
+        dampedTorqueDtU_[d.alphaDBegin] = damper * dt_;
+      }
+      else
+      {
+        // Not near torque limits
+        d.state = DampData::Free;
+        dampedTorqueDtL_[d.alphaDBegin] = torqueDtL_[d.alphaDBegin];
+        dampedTorqueDtU_[d.alphaDBegin] = torqueDtU_[d.alphaDBegin];
+      }
+    }
+
+    AL_.head(torqueL_.rows()) += torqueL_.cwiseMax(torqueDtL_ + curTorque_).cwiseMax(dampedTorqueDtL_ + curTorque_);
+    AU_.head(torqueL_.rows()) += torqueU_.cwiseMin(torqueDtU_ + curTorque_).cwiseMin(dampedTorqueDtU_ + curTorque_);
   }
   else
   {
     AL_.head(torqueL_.rows()) += torqueL_;
     AU_.head(torqueU_.rows()) += torqueU_;
   }
+  prevJointTorque_ = mbc.jointTorque;
 }
 
 Eigen::MatrixXd MotionConstr::contactMatrix() const
