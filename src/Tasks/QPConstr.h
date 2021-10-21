@@ -124,13 +124,13 @@ private:
  * a velocity damper.
  * For each articulation \f$ j \f$:
  * \f[
- * \frac{\max(-\xi \frac{\underline{d} - d_s}{d_i - d_s},
+ * \max\Big(\frac{\max(-\xi \frac{\underline{d} - d_s}{d_i - d_s},
  *            \underline{\alpha}_{j})
- * - \alpha_{j}}{\Delta_{dt}}
+ * - \alpha_{j}}{\Delta_{dt}}, \dot{\alpha}_j^{k-1} + \underline{\ddot{\alpha}}_j \Big)
  * \leq \dot{\alpha}_{j} \leq
- * \frac{\min(\xi \frac{\overline{d} - d_s}{d_i - d_s},
+ * \min\Big(\frac{\min(\xi \frac{\overline{d} - d_s}{d_i - d_s},
  *            \overline{\alpha}_{j})
- * - \alpha_{j}}{\Delta_{dt}}
+ * - \alpha_{j}}{\Delta_{dt}}, \dot{\alpha}_j^{k-1} + \overline{\ddot{\alpha}}_j \Big)
  * \f]
  * with \f$ \underline{d} \f$ and \f$ \overline{d} \f$ the distance to the
  * lower and upper articular position bound, \f$ d_i \f$ the interactive
@@ -140,7 +140,7 @@ private:
  * the distance \f$ \underline{d} \f$ or \f$ \overline{d} \f$ go below
  * the interactive distance \f$ d_i \f$ with
  * the following formula:
- * \f[ \xi = -\frac{d_i - d_s}{d - d_s}\alpha + \xi_{\text{off}} \f]
+ * \f[ \xi = \left| \frac{d_i - d_s}{d - d_s}\alpha \right| + \xi_{\text{off}} \f]
  *
  * This behavior give the better stability and we usually use
  * the following values:
