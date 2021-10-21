@@ -120,7 +120,7 @@ protected:
 };
 
 /**
- * Avoid to reach torque limits based on a linear velocity damper.
+ * Avoid reaching torque limits based on a linear velocity damper.
  *
  * A linear velocity damper equation writes as
  * \f[
@@ -134,7 +134,7 @@ protected:
  * \f[
  * \xi = - \frac{d_i - d_s}{d^k - d_s} \dot{d^k} + \xi_\text{off}
  * \f]
- * with \f$ \xi_\text{off} \f$ a user specified constant (usually \f$ 0.5 \f$).
+ * with \f$ \xi_\text{off} \f$ a user-specified constant (usually \f$ 0.5 \f$).
  *
  * A constraint written in this form allows to reduce the state speed \f$ \dot{d}^k \f$ when approaching the state limit, until \f$ \dot{d}^k \f$ becomes zero when \f$ d^k = d_s \f$.
  *
@@ -155,19 +155,19 @@ protected:
  * \f]
  * assuming that the torque limits are constant.
  *
- * The corresponding linear velovity damper constraints are
+ * The corresponding linear velocity damper constraints are
  * \f[
  * \dot{\tau} \geq -\xi_l \frac{\underline{d}^k - d_s}{d_i - d_s}
  * \f]
  * \f[
- * \xi_l = - \frac{d_i - d_s}{\underline{d}^k - d_s} \dot{\tau} + \xi_\text{off} \text{, where } \dot{\tau} \text{ is computed numeriacally as } \frac{\tau_{k-1} - \tau_{k-2}}{\Delta_{dt}}
+ * \xi_l = - \frac{d_i - d_s}{\underline{d}^k - d_s} \dot{\tau} + \xi_\text{off} \text{, where } \dot{\tau} \text{ is computed numerically as } \frac{\tau_{k-1} - \tau_{k-2}}{\Delta_{dt}}
  * \f]
  * and
  * \f[
  * -\dot{\tau} \geq -\xi_u \frac{\overline{d}^k - d_s}{d_i - d_s}
  * \f]
  * \f[
- * \xi_u = - \frac{d_i - d_s}{\overline{d}^k - d_s} (-\dot{\tau}) + \xi_\text{off} \text{, where } \dot{\tau} \text{ is computed numeriacally as } \frac{\tau_{k-1} - \tau_{k-2}}{\Delta_{dt}}
+ * \xi_u = - \frac{d_i - d_s}{\overline{d}^k - d_s} (-\dot{\tau}) + \xi_\text{off} \text{, where } \dot{\tau} \text{ is computed numerically as } \frac{\tau_{k-1} - \tau_{k-2}}{\Delta_{dt}}
  * \f]
  * These constraints combined impose lower and upper limit on the torque derivative
  * \f[
@@ -177,7 +177,7 @@ protected:
  * \f[
  * \tau_{k-1} + (-\xi_l \frac{\underline{d}^k - d_s}{d_i - d_s})\Delta_{dt} - C \leq M(q)\ddot{q} - J^T f \leq \tau_{k-1} + \xi_u \frac{\overline{d}^k - d_s}{d_i - d_s} \Delta_{dt} - C
  * \f]
- * In order to account also for the torque limits (\f$ \underline{\tau} \f$ and \f$ \overline{\tau} \f$) and default torque derivative limits (\f$ \underline{\dot{\tau}} \f$ and \f$ \overline{\dot{\tau}} \f$) the final constarint takes on the following form
+ * In order to account also for the torque limits (\f$ \underline{\tau} \f$ and \f$ \overline{\tau} \f$) and default torque derivative limits (\f$ \underline{\dot{\tau}} \f$ and \f$ \overline{\dot{\tau}} \f$) the final constraint takes on the following form
  * \f[
  * \max(\underline{\tau}, \tau_{k-1} + \underline{\dot{\tau}}\Delta_{dt}, \tau_{k-1} + (-\xi_l \frac{\underline{d}^k - d_s}{d_i - d_s})\Delta_{dt}) - C \leq M(q)\ddot{q} - J^T f \leq \min(\overline{\tau}, \tau_{k-1} + \overline{\dot{\tau}}\Delta_{dt}, \tau_{k-1} + \xi_u \frac{\overline{d}^k - d_s}{d_i - d_s} \Delta_{dt}) - C
  * \f]
