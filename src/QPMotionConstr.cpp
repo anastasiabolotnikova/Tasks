@@ -317,6 +317,9 @@ void MotionConstr::update(const std::vector<rbd::MultiBody> & mbs,
       double ld = mbc.jointTorque[d.jointIndex][0] - d.min;
       double ud = d.max - mbc.jointTorque[d.jointIndex][0];
 
+      dampedTorqueDtL_[d.alphaDBegin] = torqueDtL_[d.alphaDBegin];
+      dampedTorqueDtU_[d.alphaDBegin] = torqueDtU_[d.alphaDBegin];
+
       if(ld < d.iDist)
       {
         // Aproaching lower torque bound
