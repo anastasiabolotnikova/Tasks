@@ -281,9 +281,9 @@ private:
  * and \f$ \xi \f$ the damper.
  *
  * The damper \f$ \xi \f$ can be calculated automatically each time
- * the distance \f$ d \f$ go below the interactive distance \f$ d_i \f$ with
+ * the distance \f$ d \f$ goes below the interactive distance \f$ d_i \f$ with
  * the following formula:
- * \f[ \xi = -\frac{d_i - d_s}{d - d_s}\alpha + \xi_{\text{off}} \f]
+ * \f[ \xi = -\frac{d_i - d_s}{d - d_s}\dot{d} + \xi_{\text{off}} \f]
  */
 class TASKS_DLLAPI CollisionConstr : public ConstraintFunction<Inequality>
 {
