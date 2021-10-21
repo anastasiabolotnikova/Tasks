@@ -119,6 +119,69 @@ protected:
   size_t updateIter_ = 0;
 };
 
+/**
+ * Avoid to reach torque limits based on a linear velocity damper.
+ *
+ * A linear velocity damper equation writes as
+ * \f[
+ * \dot{d}^k \geq - \xi \frac{d^k - d_s}{d_i - d_s}
+ * \f]
+ * where \f$ d^k \f$ denotes the distance to a limit at iteration \f$ k \f$.
+ *
+ * \f$ d_i \f$ is an interaction distance constant. The linear velocity damper constraint is activated only when \f$ d^k < d_i \f$.
+ *
+ * \f$ d_s \f$ is a safety distance constant, and \f$ \xi \f$ is a damping constant, computed when constraint is activated as
+ * \f[
+ * \xi = - \frac{d_i - d_s}{d^k - d_s} \dot{d^k} + \xi_\text{off}
+ * \f]
+ * with \f$ \xi_\text{off} \f$ a user specified constant (usually \f$ 0.5 \f$).
+ *
+ * A constraint written in this form allows to reduce the state speed \f$ \dot{d}^k \f$ when approaching the state limit, until \f$ \dot{d}^k \f$ becomes zero when \f$ d^k = d_s \f$.
+ *
+ *
+ * In case of torque limits two following distances are considered
+ * \f[
+ * \underline{d} = \tau - \underline{\tau}
+ * \f]
+ * \f[
+ * \overline{d} = \overline{\tau} - \tau
+ * \f]
+ * with their respective derivatives
+ * \f[
+ * \dot{\underline{d}} = \dot{\tau}
+ * \f]
+ * \f[
+ * \dot{\overline{d}} = - \dot{\tau}
+ * \f]
+ * assuming that the torque limits are constant.
+ *
+ * The corresponding linear velovity damper constraints are
+ * \f[
+ * \dot{\tau} \geq -\xi_l \frac{\underline{d}^k - d_s}{d_i - d_s}
+ * \f]
+ * \f[
+ * \xi_l = - \frac{d_i - d_s}{\underline{d}^k - d_s} \dot{\tau} + \xi_\text{off} \text{, where } \dot{\tau} \text{ is computed numeriacally as } \frac{\tau_{k-1} - \tau_{k-2}}{\Delta_{dt}}
+ * \f]
+ * and
+ * \f[
+ * -\dot{\tau} \geq -\xi_u \frac{\overline{d}^k - d_s}{d_i - d_s}
+ * \f]
+ * \f[
+ * \xi_u = - \frac{d_i - d_s}{\overline{d}^k - d_s} (-\dot{\tau}) + \xi_\text{off} \text{, where } \dot{\tau} \text{ is computed numeriacally as } \frac{\tau_{k-1} - \tau_{k-2}}{\Delta_{dt}}
+ * \f]
+ * These constraints combined impose lower and upper limit on the torque derivative
+ * \f[
+ * -\xi_l \frac{\underline{d}^k - d_s}{d_i - d_s} \leq \dot{\tau} \leq \xi_u \frac{\overline{d}^k - d_s}{d_i - d_s}
+ * \f]
+ * which translate into the following constraint on joints acceleration \f$ \ddot{q} \f$ and contact forces \f$ f \f$
+ * \f[
+ * \tau_{k-1} + (-\xi_l \frac{\underline{d}^k - d_s}{d_i - d_s})\Delta_{dt} - C \leq M(q)\ddot{q} - J^T f \leq \tau_{k-1} + \xi_u \frac{\overline{d}^k - d_s}{d_i - d_s} \Delta_{dt} - C
+ * \f]
+ * In order to account also for the torque limits (\f$ \underline{\tau} \f$ and \f$ \overline{\tau} \f$) and default torque derivative limits (\f$ \underline{\dot{\tau}} \f$ and \f$ \overline{\dot{\tau}} \f$) the final constarint takes on the following form
+ * \f[
+ * \max(\underline{\tau}, \tau_{k-1} + \underline{\dot{\tau}}\Delta_{dt}, \tau_{k-1} + (-\xi_l \frac{\underline{d}^k - d_s}{d_i - d_s})\Delta_{dt}) - C \leq M(q)\ddot{q} - J^T f \leq \min(\overline{\tau}, \tau_{k-1} + \overline{\dot{\tau}}\Delta_{dt}, \tau_{k-1} + \xi_u \frac{\overline{d}^k - d_s}{d_i - d_s} \Delta_{dt}) - C
+ * \f]
+ */
 class TASKS_DLLAPI MotionConstr : public MotionConstrCommon
 {
 public:
