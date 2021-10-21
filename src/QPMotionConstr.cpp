@@ -270,8 +270,8 @@ MotionConstr::MotionConstr(const std::vector<rbd::MultiBody> & mbs,
                            const TorqueDBound & tdb,
                            double dt)
 : MotionConstrCommon(mbs, robotIndex), torqueL_(mbs[robotIndex].nrDof()), torqueU_(mbs[robotIndex].nrDof()),
-  torqueDtL_(mbs[robotIndex].nrDof()), torqueDtU_(mbs[robotIndex].nrDof()), tmpL_(nrDof_), tmpU_(nrDof_),
-  dt_(dt), dampedTorqueDtL_(mbs[robotIndex].nrDof()), dampedTorqueDtU_(mbs[robotIndex].nrDof())
+  torqueDtL_(mbs[robotIndex].nrDof()), torqueDtU_(mbs[robotIndex].nrDof()), tmpL_(nrDof_), tmpU_(nrDof_), dt_(dt),
+  dampedTorqueDtL_(mbs[robotIndex].nrDof()), dampedTorqueDtU_(mbs[robotIndex].nrDof())
 
 {
   rbd::paramToVector(tb.lTorqueBound, torqueL_);
@@ -283,8 +283,7 @@ MotionConstr::MotionConstr(const std::vector<rbd::MultiBody> & mbs,
     if(mb.joint(i).dof() == 1)
     {
       double dist = (torqueU_[mb.jointPosInDof(i)] - torqueL_[mb.jointPosInDof(i)]);
-      data_.emplace_back(torqueL_[mb.jointPosInDof(i)], torqueU_[mb.jointPosInDof(i)],
-                         dist * 0.1, dist * 0.01,
+      data_.emplace_back(torqueL_[mb.jointPosInDof(i)], torqueU_[mb.jointPosInDof(i)], dist * 0.1, dist * 0.01,
                          mb.jointPosInDof(i), i);
     }
   }
@@ -328,11 +327,11 @@ void MotionConstr::update(const std::vector<rbd::MultiBody> & mbs,
           // Derivative of the distance to the lower torque limit ld
           double dDot = (mbc.jointTorque[d.jointIndex][0] - prevJointTorque_[d.jointIndex][0]) / dt_;
           // Damping constant computed when constraint is activated
-          d.damping = - ((d.iDist - d.sDist) / (ld - d.sDist)) * dDot + damperOff_;
+          d.damping = -((d.iDist - d.sDist) / (ld - d.sDist)) * dDot + damperOff_;
           d.state = DampData::Low;
         }
         // Damped lower torque derivative limit
-        double damper = - d.damping * ((ld - d.sDist) / (d.iDist - d.sDist));
+        double damper = -d.damping * ((ld - d.sDist) / (d.iDist - d.sDist));
         dampedTorqueDtL_[d.alphaDBegin] = damper * dt_;
       }
       else if(ud < d.iDist)
@@ -341,9 +340,9 @@ void MotionConstr::update(const std::vector<rbd::MultiBody> & mbs,
         if(d.state != DampData::Upp)
         {
           // Derivative of the distance to the upper torque limit ud
-          double dDot = - (mbc.jointTorque[d.jointIndex][0] - prevJointTorque_[d.jointIndex][0]) / dt_;
+          double dDot = -(mbc.jointTorque[d.jointIndex][0] - prevJointTorque_[d.jointIndex][0]) / dt_;
           // Damping constant computed when constraint is activated
-          d.damping = - ((d.iDist - d.sDist) / (ud - d.sDist)) * dDot + damperOff_;
+          d.damping = -((d.iDist - d.sDist) / (ud - d.sDist)) * dDot + damperOff_;
           d.state = DampData::Upp;
         }
         // Damped upper torque derivative limit
