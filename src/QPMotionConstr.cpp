@@ -10,6 +10,7 @@
 #include <unsupported/Eigen/Polynomials>
 
 // RBDyn
+#include <RBDyn/Coriolis.h>
 #include <RBDyn/MultiBody.h>
 #include <RBDyn/MultiBodyConfig.h>
 
@@ -270,10 +271,24 @@ MotionConstr::MotionConstr(const std::vector<rbd::MultiBody> & mbs,
                            const TorqueDBound & tdb,
                            double dt)
 : MotionConstrCommon(mbs, robotIndex), torqueL_(mbs[robotIndex].nrDof()), torqueU_(mbs[robotIndex].nrDof()),
-  torqueDtL_(mbs[robotIndex].nrDof()), torqueDtU_(mbs[robotIndex].nrDof()), tmpL_(nrDof_), tmpU_(nrDof_)
+  torqueDtL_(mbs[robotIndex].nrDof()), torqueDtU_(mbs[robotIndex].nrDof()), tmpL_(nrDof_), tmpU_(nrDof_),
+  alpha_(mbs[robotIndex].nrDof()), gravityTorque_(mbs[robotIndex].nrDof()), dampedTorque_(mbs[robotIndex].nrDof())
 {
   rbd::paramToVector(tb.lTorqueBound, torqueL_);
   rbd::paramToVector(tb.uTorqueBound, torqueU_);
+
+  const rbd::MultiBody & mb = mbs[robotIndex];
+  for(int i = 0; i < mb.nrJoints(); ++i)
+  {
+    if(mb.joint(i).dof() == 1)
+    {
+      double dist = (torqueU_[mb.jointPosInDof(i)] - torqueL_[mb.jointPosInDof(i)]);
+      data_.emplace_back(torqueL_[mb.jointPosInDof(i)], torqueU_[mb.jointPosInDof(i)], dist * 0.1, mb.jointPosInDof(i),
+                         i);
+    }
+  }
+  K_ = 0.5;
+
   torqueDtL_.setConstant(-std::numeric_limits<double>::infinity());
   torqueDtU_.setConstant(std::numeric_limits<double>::infinity());
   rbd::paramToVector(tdb.lTorqueDBound, torqueDtL_);
@@ -288,16 +303,34 @@ void MotionConstr::update(const std::vector<rbd::MultiBody> & mbs,
 {
   computeMatrix(mbs, mbcs);
 
+  const rbd::MultiBody & mb = mbs[robotIndex_];
+  const rbd::MultiBodyConfig & mbc = mbcs[robotIndex_];
+  rbd::paramToVector(mbc.alpha, alpha_);
+  rbd::Coriolis coriolis(mb);
+  gravityTorque_ = fd_.C() - coriolis.coriolis(mb, mbc) * alpha_;
+  dampedTorque_.setZero();
+
+  for(DampData & d : data_)
+  {
+    double ld = gravityTorque_[d.alphaDBegin] - d.min;
+    double ud = d.max - gravityTorque_[d.alphaDBegin];
+
+    if(ld < d.iDist || ud < d.iDist)
+    {
+      dampedTorque_[d.alphaDBegin] = K_ * alpha_[d.alphaDBegin];
+    }
+  }
+
   // max[tauMin, tauDMin*dt + tau(k-1)] - C <= H*alphaD - J^t G lambda <= min[tauMax, tauDMax * dt + tau(k-1)] - C
   if(updateIter_++ > 0)
   {
-    AL_.head(torqueL_.rows()) += torqueL_.cwiseMax(torqueDtL_ + curTorque_);
-    AU_.head(torqueL_.rows()) += torqueU_.cwiseMin(torqueDtU_ + curTorque_);
+    AL_.head(torqueL_.rows()) += (torqueL_ - dampedTorque_).cwiseMax(torqueDtL_ + curTorque_);
+    AU_.head(torqueL_.rows()) += (torqueU_ - dampedTorque_).cwiseMin(torqueDtU_ + curTorque_);
   }
   else
   {
-    AL_.head(torqueL_.rows()) += torqueL_;
-    AU_.head(torqueU_.rows()) += torqueU_;
+    AL_.head(torqueL_.rows()) += (torqueL_ - dampedTorque_);
+    AU_.head(torqueU_.rows()) += (torqueU_ - dampedTorque_);
   }
 }
 
