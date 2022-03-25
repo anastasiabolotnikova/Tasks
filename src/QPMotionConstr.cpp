@@ -10,12 +10,15 @@
 #include <unsupported/Eigen/Polynomials>
 
 // RBDyn
+#include <RBDyn/Coriolis.h>
 #include <RBDyn/MultiBody.h>
 #include <RBDyn/MultiBodyConfig.h>
 
 // Tasks
 #include "Tasks/Bounds.h"
 #include "utils.h"
+
+#include <iostream>
 
 namespace tasks
 {
@@ -270,10 +273,36 @@ MotionConstr::MotionConstr(const std::vector<rbd::MultiBody> & mbs,
                            const TorqueDBound & tdb,
                            double dt)
 : MotionConstrCommon(mbs, robotIndex), torqueL_(mbs[robotIndex].nrDof()), torqueU_(mbs[robotIndex].nrDof()),
-  torqueDtL_(mbs[robotIndex].nrDof()), torqueDtU_(mbs[robotIndex].nrDof()), tmpL_(nrDof_), tmpU_(nrDof_)
+  torqueDtL_(mbs[robotIndex].nrDof()), torqueDtU_(mbs[robotIndex].nrDof()), tmpL_(nrDof_), tmpU_(nrDof_),
+  alpha_(mbs[robotIndex].nrDof()), gravityTorque_(mbs[robotIndex].nrDof()), dampedTorque_(mbs[robotIndex].nrDof()),
+  kNom_(mbs[robotIndex].nrDof(), mbs[robotIndex].nrDof()), K_(mbs[robotIndex].nrDof(), mbs[robotIndex].nrDof())
 {
   rbd::paramToVector(tb.lTorqueBound, torqueL_);
   rbd::paramToVector(tb.uTorqueBound, torqueU_);
+
+  const rbd::MultiBody & mb = mbs[robotIndex];
+  for(int i = 0; i < mb.nrJoints(); ++i)
+  {
+    if(mb.joint(i).dof() == 1)
+    {
+      double dist = (torqueU_[mb.jointPosInDof(i)] - torqueL_[mb.jointPosInDof(i)]);
+      data_.emplace_back(torqueL_[mb.jointPosInDof(i)], torqueU_[mb.jointPosInDof(i)], dist * 0.1, mb.jointPosInDof(i),
+                         i);
+    }
+  }
+
+  //kNom_ << 0.015; // close to critical open-loop (1DoF)
+  //kNom_ << 0.07; // a bit overdamped (conservative) closed-loop (1DoF)
+  //kNom_ << 0.05, 0.0, 0.01, 0.0, // I'd call that a 'good behaviour' (torque going to constraint fast and smooth without overshooting) (2DoF)
+  //         0.0, 0.0, 0.0, 0.0,
+  //         0.0125, 0.0, 0.015, 0.0, // I'd call that a 'good behaviour'
+  //         0.0, 0.0, 0.0, 0.0; // every second joint is mimic
+  //kNom_ << 0.25, 0.0, 0.05, 0.0,
+  //         0.0, 0.0, 0.0, 0.0,
+  //         0.0125, 0.0, 0.015, 0.0,
+  //         0.0, 0.0, 0.0, 0.0;
+  K_.setZero();
+
   torqueDtL_.setConstant(-std::numeric_limits<double>::infinity());
   torqueDtU_.setConstant(std::numeric_limits<double>::infinity());
   rbd::paramToVector(tdb.lTorqueDBound, torqueDtL_);
@@ -286,19 +315,59 @@ void MotionConstr::update(const std::vector<rbd::MultiBody> & mbs,
                           const std::vector<rbd::MultiBodyConfig> & mbcs,
                           const SolverData & /* data */)
 {
+  //std::cout << "MotionConstr::update" << std::endl;
   computeMatrix(mbs, mbcs);
+
+  const rbd::MultiBody & mb = mbs[robotIndex_];
+  const rbd::MultiBodyConfig & mbc = mbcs[robotIndex_];
+  rbd::paramToVector(mbc.alpha, alpha_); // Can I take real robot velocity value into account only for this constraint? Is that what 'robust adaptive gain' constraints do?
+  rbd::Coriolis coriolis(mb);
+  gravityTorque_ = fd_.C() - coriolis.coriolis(mb, mbc) * alpha_;
+  dampedTorque_.setZero();
+  K_.setZero();
+
+  for(DampData & d : data_)
+  {
+    double ld = gravityTorque_[d.alphaDBegin] - d.min;
+    double ud = d.max - gravityTorque_[d.alphaDBegin];
+
+    if(ld < d.iDist || ud < d.iDist)
+    {
+      //std::cout << "--------------------Bypassed iDist on torque " << d.alphaDBegin << ld << " " << ud << std::endl;
+      //dampedTorque_[d.alphaDBegin] = K_ * alpha_[d.alphaDBegin];
+
+      // Matrix version
+      K_.row(d.alphaDBegin) = kNom_.row(d.alphaDBegin);
+    }
+  }
+  dampedTorque_ = K_ * alpha_;
 
   // max[tauMin, tauDMin*dt + tau(k-1)] - C <= H*alphaD - J^t G lambda <= min[tauMax, tauDMax * dt + tau(k-1)] - C
   if(updateIter_++ > 0)
   {
-    AL_.head(torqueL_.rows()) += torqueL_.cwiseMax(torqueDtL_ + curTorque_);
-    AU_.head(torqueL_.rows()) += torqueU_.cwiseMin(torqueDtU_ + curTorque_);
+    AL_.head(torqueL_.rows()) += (torqueL_ - dampedTorque_).cwiseMax(torqueDtL_ + curTorque_);
+    AU_.head(torqueL_.rows()) += (torqueU_ - dampedTorque_).cwiseMin(torqueDtU_ + curTorque_);
   }
   else
   {
-    AL_.head(torqueL_.rows()) += torqueL_;
-    AU_.head(torqueU_.rows()) += torqueU_;
+    AL_.head(torqueL_.rows()) += (torqueL_ - dampedTorque_);
+    AU_.head(torqueU_.rows()) += (torqueU_ - dampedTorque_);
   }
+
+  //std::cout << "H" << std::endl;
+  //std::cout << fd_.H() << std::endl;
+  //std::cout << "AL" << std::endl;
+  //std::cout << AL_ << std::endl;
+  //std::cout << "AU" << std::endl;
+  //std::cout << AU_ << std::endl;
+  //std::cout << "K" << std::endl;
+  //std::cout << K_ << std::endl;
+  //std::cout << "gravityTorque" << std::endl;
+  //std::cout << gravityTorque_ << std::endl;
+  //std::cout << "coriolis" << std::endl;
+  //std::cout << coriolis.coriolis(mb, mbc) << std::endl;
+  //std::cout << "alpha_" << std::endl;
+  //std::cout << alpha_.transpose()  << "\n" << std::endl;
 }
 
 Eigen::MatrixXd MotionConstr::contactMatrix() const

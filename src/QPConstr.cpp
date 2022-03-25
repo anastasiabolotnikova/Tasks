@@ -753,14 +753,16 @@ void CoMIncPlaneConstr::update(const std::vector<rbd::MultiBody> & mbs,
   for(std::size_t i = 0; i < dataVec_.size(); ++i)
   {
     PlaneData & d = dataVec_[i];
-    d.dist = d.normal.dot(com) + d.offset;
+    d.dist = d.normal.dot(com) + d.offset; // Why is it not absolute?
     if(d.dist <= d.di)
     {
+      std::cout << "ACTIVATED CoMIncPlaneConstr " << d.dist << " " << d.offset << std::endl;
       // don't allocate since we set capacity to dataVec_ size
       activated_.push_back(i);
     }
     else
     {
+      std::cout << "CoMIncPlaneConstr " << d.dist << " " << d.offset << std::endl;
       if(d.dampingType == PlaneData::DampingType::Soft)
       {
         d.dampingType = PlaneData::DampingType::Free;
