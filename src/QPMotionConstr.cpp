@@ -291,16 +291,13 @@ MotionConstr::MotionConstr(const std::vector<rbd::MultiBody> & mbs,
     }
   }
 
-  //kNom_ << 0.015; // close to critical open-loop (1DoF)
-  //kNom_ << 0.07; // a bit overdamped (conservative) closed-loop (1DoF)
-  //kNom_ << 0.05, 0.0, 0.01, 0.0, // I'd call that a 'good behaviour' (torque going to constraint fast and smooth without overshooting) (2DoF)
-  //         0.0, 0.0, 0.0, 0.0,
-  //         0.0125, 0.0, 0.015, 0.0, // I'd call that a 'good behaviour'
-  //         0.0, 0.0, 0.0, 0.0; // every second joint is mimic
-  //kNom_ << 0.25, 0.0, 0.05, 0.0,
-  //         0.0, 0.0, 0.0, 0.0,
-  //         0.0125, 0.0, 0.015, 0.0,
-  //         0.0, 0.0, 0.0, 0.0;
+  //kNom_ << 0.05, 0.0, 0.0, 0.0, 0.0, 0.0,
+  //         0.0, 0.0, 0.0, 0.0, 0.0, 0.0, // every second joint is mimic -> Matrices are much bigger in size than they have to be
+  //         0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+  //         0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+  //         0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+  //         0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
+
   K_.setZero();
 
   torqueDtL_.setConstant(-std::numeric_limits<double>::infinity());
