@@ -291,7 +291,7 @@ MotionConstr::MotionConstr(const std::vector<rbd::MultiBody> & mbs,
     }
   }
 
-  kNom_ << 0.05, 0.0, 0.0, 0.0, 0.0, 0.0,
+  kNom_ << 0.15, 0.0, 0.0, 0.0, 0.0, 0.0,
            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, // every second joint is mimic -> Matrices are much bigger in size than they have to be
            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
