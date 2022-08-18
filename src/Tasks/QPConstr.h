@@ -336,7 +336,8 @@ public:
                     double damping,
                     double dampingOff = 0.,
                     const Eigen::VectorXd & r1Selector = Eigen::VectorXd::Zero(0),
-                    const Eigen::VectorXd & r2Selector = Eigen::VectorXd::Zero(0));
+                    const Eigen::VectorXd & r2Selector = Eigen::VectorXd::Zero(0),
+                    bool reverse = false);
 
   /**
    * Remove a collision avoidance constraint.
@@ -405,7 +406,8 @@ private:
              double di,
              double ds,
              double damping,
-             double dampingOff);
+             double dampingOff,
+             bool reverse);
     CollData(CollData &&) = default;
     CollData(const CollData &) = delete;
     CollData & operator=(const CollData &) = delete;
@@ -418,6 +420,7 @@ private:
     Eigen::Vector3d normVecDist;
     double di, ds;
     double damping;
+    bool reverse;
     std::vector<BodyCollData> bodies;
 
     DampingType dampingType;

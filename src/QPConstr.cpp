@@ -373,8 +373,9 @@ CollisionConstr::CollData::CollData(std::vector<BodyCollData> bcds,
                                     double di,
                                     double ds,
                                     double damp,
-                                    double dampOff)
-: pair(new sch::CD_Pair(body1, body2)), normVecDist(Eigen::Vector3d::Zero()), di(di), ds(ds), damping(damp),
+                                    double dampOff,
+                                    bool reverse)
+: pair(new sch::CD_Pair(body1, body2)), normVecDist(Eigen::Vector3d::Zero()), di(di), ds(ds), damping(damp), reverse(reverse),
   bodies(std::move(bcds)), dampingType(damping > 0. ? DampingType::Hard : DampingType::Free), dampingOff(dampOff),
   collId(collId)
 {
@@ -403,7 +404,8 @@ void CollisionConstr::addCollision(const std::vector<rbd::MultiBody> & mbs,
                                    double damping,
                                    double dampingOff,
                                    const Eigen::VectorXd & r1Selector,
-                                   const Eigen::VectorXd & r2Selector)
+                                   const Eigen::VectorXd & r2Selector,
+                                   bool reverse)
 {
   const rbd::MultiBody mb1 = mbs[static_cast<size_t>(r1Index)];
   const rbd::MultiBody mb2 = mbs[static_cast<size_t>(r2Index)];
@@ -418,7 +420,7 @@ void CollisionConstr::addCollision(const std::vector<rbd::MultiBody> & mbs,
     assert(r2Selector.size() == 0 || r2Selector.size() == mb2.nrDof());
     bodies.emplace_back(mb2, r2Index, r2BodyName, body2, X_op2_o2, r1Index == r2Index ? r1Selector : r2Selector);
   }
-  dataVec_.emplace_back(std::move(bodies), collId, body1, body2, di, ds, damping, dampingOff);
+  dataVec_.emplace_back(std::move(bodies), collId, body1, body2, di, ds, damping, dampingOff, reverse);
 }
 
 bool CollisionConstr::rmCollision(int collId)
@@ -509,7 +511,7 @@ void CollisionConstr::update(const std::vector<rbd::MultiBody> & mbs,
       nearestPoint = d.p2;
     }
 
-    if(d.distance < d.di)
+    if((!d.reverse && d.distance < d.di) || (d.distance > d.di && d.reverse))
     {
       // automatic damping computation if needed
       if(d.dampingType == CollData::DampingType::Free)
@@ -524,7 +526,7 @@ void CollisionConstr::update(const std::vector<rbd::MultiBody> & mbs,
       Vector3d onf = d.normVecDist;
       Vector3d dnf = (nf - onf) / step_;
 
-      double sign = 1.;
+      double sign = !d.reverse ? 1.: -1.;
       bInEq_(nrActivated_) = dampers;
       AInEq_.block(nrActivated_, 0, 1, totalAlphaD_).setZero();
       for(std::size_t i = 0; i < d.bodies.size(); ++i)
@@ -561,7 +563,7 @@ void CollisionConstr::update(const std::vector<rbd::MultiBody> & mbs,
         // little hack
         // the max iteration number is two, so at the second iteration
         // sign will be -1
-        sign = -1.;
+        sign = !d.reverse ? -1.: 1.;
       }
       ++nrActivated_;
     }
