@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-18.04, ubuntu-20.04, macos-latest, windows-latest]
+        os: [ubuntu-20.04, ubuntu-22.04, macos-latest, windows-latest]
         build-type: [Debug, RelWithDebInfo]
         compiler: [gcc, clang]
         exclude:
@@ -44,13 +44,13 @@ jobs:
         compiler: ${{ matrix.compiler }}
         build-type: ${{ matrix.build-type }}
         ubuntu: |
-          apt: cython cython3 python-nose python3-nose python-numpy python3-numpy python-coverage python3-coverage python-setuptools python3-setuptools libeigen3-dev doxygen doxygen-latex libboost-all-dev libtinyxml2-dev libyaml-cpp-dev
+          apt: cython cython3 python-pytest python3-pytest python-numpy python3-numpy python-coverage python3-coverage python-setuptools python3-setuptools libeigen3-dev doxygen doxygen-latex libboost-all-dev libtinyxml2-dev libyaml-cpp-dev
         macos: |
           cask: gfortran
           brew: eigen boost tinyxml2 yaml-cpp
-          pip: Cython coverage nose numpy
+          pip: Cython coverage pytest numpy
         windows: |
-          pip: Cython coverage nose numpy
+          pip: Cython coverage pytest numpy
           github:
             - path: eigenteam/eigen-git-mirror
               ref: 3.3.7
@@ -66,16 +66,18 @@ jobs:
           - path: jrl-umi3218/eigen-qld
           - path: jrl-umi3218/sch-core-python
           - path: jrl-umi3218/RBDyn
+        macos-options: -DPYTHON_BINDING:BOOL=OFF
         windows-options: -DPYTHON_BINDING:BOOL=OFF
     - name: Build and test
       uses: jrl-umi3218/github-actions/build-cmake-project@master
       with:
         compiler: ${{ matrix.compiler }}
         build-type: ${{ matrix.build-type }}
+        macos-options: -DPYTHON_BINDING:BOOL=OFF
         windows-options: -DPYTHON_BINDING:BOOL=OFF
     - name: Upload documentation
       # Only run on master branch and for one configuration
-      if: matrix.os == 'ubuntu-18.04' && matrix.build-type == 'RelWithDebInfo' && matrix.compiler == 'gcc' && github.ref == 'refs/heads/master'
+      if: matrix.os == 'ubuntu-20.04' && matrix.build-type == 'RelWithDebInfo' && matrix.compiler == 'gcc' && github.ref == 'refs/heads/master'
       uses: jrl-umi3218/github-actions/upload-documentation@master
       with:
         GH_USER: gergondet

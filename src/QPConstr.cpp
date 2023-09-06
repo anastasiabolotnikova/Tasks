@@ -286,10 +286,7 @@ void DamperJointLimitsConstr::update(const std::vector<rbd::MultiBody> & /* mbs 
       double damper = computeDamper(ud, d.iDist, d.sDist, d.damping);
       upper_[d.alphaDBegin] = std::min((damper - alpha) / step_, upper_[d.alphaDBegin]);
     }
-    else
-    {
-      d.state = DampData::Free;
-    }
+    else { d.state = DampData::Free; }
   }
   lower_ = lower_.cwiseMax(alphaDLower_).cwiseMax(alphaDDLower_ + prevAlphaD_);
   upper_ = upper_.cwiseMin(alphaDUpper_).cwiseMin(alphaDDUpper_ + prevAlphaD_);
@@ -343,10 +340,7 @@ sch::Matrix4x4 tosch(const sva::PTransformd & t)
 
   for(int i = 0; i < 3; ++i)
   {
-    for(int j = 0; j < 3; ++j)
-    {
-      m(i, j) = rot(j, i);
-    }
+    for(int j = 0; j < 3; ++j) { m(i, j) = rot(j, i); }
   }
 
   m(0, 3) = tran(0);
@@ -375,9 +369,9 @@ CollisionConstr::CollData::CollData(std::vector<BodyCollData> bcds,
                                     double damp,
                                     double dampOff,
                                     bool reverse)
-: pair(new sch::CD_Pair(body1, body2)), normVecDist(Eigen::Vector3d::Zero()), di(di), ds(ds), damping(damp), reverse(reverse),
-  bodies(std::move(bcds)), dampingType(damping > 0. ? DampingType::Hard : DampingType::Free), dampingOff(dampOff),
-  collId(collId)
+: pair(new sch::CD_Pair(body1, body2)), distance(2 * di), normVecDist(Eigen::Vector3d::Zero()), di(di), ds(ds),
+  damping(damp), reverse(reverse), bodies(std::move(bcds)), dampingType(damping > 0. ? DampingType::Hard : DampingType::Free),
+  dampingOff(dampOff), collId(collId)
 {
 }
 
@@ -440,10 +434,7 @@ auto CollisionConstr::getCollisionData(int collId) const -> const CollData &
 {
   auto it =
       std::find_if(dataVec_.begin(), dataVec_.end(), [&](const CollData & data) { return data.collId == collId; });
-  if(it != dataVec_.end())
-  {
-    return *it;
-  }
+  if(it != dataVec_.end()) { return *it; }
   throw std::runtime_error("No collision with the requested id");
 }
 
@@ -569,10 +560,7 @@ void CollisionConstr::update(const std::vector<rbd::MultiBody> & mbs,
     }
     else
     {
-      if(d.dampingType == CollData::DampingType::Soft)
-      {
-        d.dampingType = CollData::DampingType::Free;
-      }
+      if(d.dampingType == CollData::DampingType::Soft) { d.dampingType = CollData::DampingType::Free; }
     }
 
     d.normVecDist = normVecDist;
@@ -686,7 +674,8 @@ CoMIncPlaneConstr::PlaneData::PlaneData(int planeId,
 
 CoMIncPlaneConstr::CoMIncPlaneConstr(const std::vector<rbd::MultiBody> & mbs, int robotIndex, double step)
 : robotIndex_(robotIndex), alphaDBegin_(-1), dataVec_(), step_(step), nrVars_(0), nrActivated_(0), activated_(0),
-  jacCoM_(mbs[robotIndex]), AInEq_(), bInEq_()
+  jacCoM_(mbs[static_cast<size_t>(robotIndex)]), selector_(Eigen::VectorXd::Ones(jacCoM_.jacobian().cols())), AInEq_(),
+  bInEq_()
 {
 }
 
@@ -744,8 +733,8 @@ void CoMIncPlaneConstr::reset()
 
 void CoMIncPlaneConstr::updateNrPlanes()
 {
-  AInEq_.setZero(dataVec_.size(), nrVars_);
-  bInEq_.setZero(dataVec_.size());
+  AInEq_.setZero(static_cast<Eigen::DenseIndex>(dataVec_.size()), nrVars_);
+  bInEq_.setZero(static_cast<Eigen::DenseIndex>(dataVec_.size()));
 }
 
 void CoMIncPlaneConstr::updateNrVars(const std::vector<rbd::MultiBody> & /* mbs */, const SolverData & data)
@@ -759,10 +748,9 @@ void CoMIncPlaneConstr::update(const std::vector<rbd::MultiBody> & mbs,
                                const std::vector<rbd::MultiBodyConfig> & mbcs,
                                const SolverData & data)
 {
-  using namespace Eigen;
-
-  const rbd::MultiBody & mb = mbs[robotIndex_];
-  const rbd::MultiBodyConfig & mbc = mbcs[robotIndex_];
+  const rbd::MultiBody & mb = mbs[static_cast<size_t>(robotIndex_)];
+  const rbd::MultiBodyConfig & mbc = mbcs[static_cast<size_t>(robotIndex_)];
+  assert(selector_.size() == mb.nrDof());
 
   Eigen::Vector3d com = rbd::computeCoM(mb, mbc);
 
@@ -777,17 +765,14 @@ void CoMIncPlaneConstr::update(const std::vector<rbd::MultiBody> & mbs,
     }
     else
     {
-      if(d.dampingType == PlaneData::DampingType::Soft)
-      {
-        d.dampingType = PlaneData::DampingType::Free;
-      }
+      if(d.dampingType == PlaneData::DampingType::Soft) { d.dampingType = PlaneData::DampingType::Free; }
     }
   }
 
   nrActivated_ = 0;
   if(!activated_.empty())
   {
-    const MatrixXd & jacComMat = jacCoM_.jacobian(mb, mbc);
+    const Eigen::MatrixXd & jacComMat = jacCoM_.jacobian(mb, mbc);
     Eigen::Vector3d comSpeed = jacCoM_.velocity(mb, mbc);
     Eigen::Vector3d comNormalAcc = jacCoM_.normalAcceleration(mb, mbc, data.normalAccB(robotIndex_));
 
@@ -811,6 +796,8 @@ void CoMIncPlaneConstr::update(const std::vector<rbd::MultiBody> & mbs,
 
       // -dt*normal^T*J_com
       AInEq_.block(nrActivated_, alphaDBegin_, 1, mb.nrDof()).noalias() = -(step_ * d.normal.transpose()) * jacComMat;
+      AInEq_.block(nrActivated_, alphaDBegin_, 1, mb.nrDof()).noalias() =
+          -(step_ * d.normal.transpose()) * jacComMat * selector_.asDiagonal();
 
       // dampers + ddot + dt*normal^T*J*qdot
       bInEq_(nrActivated_) = dampers + distDot + step_ * (d.normal.dot(comNormalAcc) + distDDot);
@@ -1102,10 +1089,7 @@ std::string BoundedSpeedConstr::descGenInEq(const std::vector<rbd::MultiBody> & 
   for(const BoundedSpeedData & c : cont_)
   {
     curRow += int(c.dof.rows());
-    if(line < curRow)
-    {
-      return std::string("Body: ") + mbs[robotIndex_].body(c.body).name();
-    }
+    if(line < curRow) { return std::string("Body: ") + mbs[robotIndex_].body(c.body).name(); }
   }
   return std::string("");
 }
@@ -1133,10 +1117,7 @@ const Eigen::VectorXd & BoundedSpeedConstr::UpperGenInEq() const
 void BoundedSpeedConstr::updateNrEq()
 {
   int nrEq = 0;
-  for(const BoundedSpeedData & c : cont_)
-  {
-    nrEq += int(c.dof.rows());
-  }
+  for(const BoundedSpeedData & c : cont_) { nrEq += int(c.dof.rows()); }
 
   A_.setZero(nrEq, nrVars_);
   lower_.setZero(nrEq);
@@ -1426,14 +1407,8 @@ std::string ImageConstr::descInEq(const std::vector<rbd::MultiBody> & /* mbs */,
       {
         std::stringstream ss;
         ss << "pointId: " << i << std::endl;
-        if(j == 0)
-        {
-          ss << "x" << std::endl;
-        }
-        else
-        {
-          ss << "y" << std::endl;
-        }
+        if(j == 0) { ss << "x" << std::endl; }
+        else { ss << "y" << std::endl; }
         ss << "normalized 2d location: " << std::endl << dataVec_[i].point2d << std::endl;
         return ss.str();
       }

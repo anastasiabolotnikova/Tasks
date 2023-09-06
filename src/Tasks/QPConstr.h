@@ -524,8 +524,20 @@ public:
   /// @return Number of plane.
   std::size_t nrPlanes() const;
 
-  /// Remove all plane.
+  /// Remove all plane
   void reset();
+
+  /** Access the joint selector
+   *
+   * By default the vector selects all joints in the robot
+   */
+  inline Eigen::VectorXd & selector() noexcept { return selector_; }
+
+  /** Access the joint selector (const)
+   *
+   * By default the vector selects all joints in the robot
+   */
+  inline const Eigen::VectorXd & selector() const noexcept { return selector_; }
 
   /// Reallocate A and b matrix.
   void updateNrPlanes();
@@ -586,6 +598,7 @@ private:
   std::vector<std::size_t> activated_;
 
   rbd::CoMJacobian jacCoM_;
+  Eigen::VectorXd selector_;
   Eigen::MatrixXd AInEq_;
   Eigen::VectorXd bInEq_;
 };
